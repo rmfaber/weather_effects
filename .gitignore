@@ -54,3 +54,6 @@ Data/
 Output/*.rds
 Output/*_output.txt
 .Rproj.user/
+
+# macOS
+.DS_Store

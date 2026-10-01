@@ -216,30 +216,30 @@ apollo_beta <- c(
   delta_1           =  0.000000,
   delta_2           = -1.175873,
   delta_3           = -3.297564,
-  gamma_ebike_2     =  0.447012,
-  gamma_male_2      =  0.062231,
-  gamma_age_2       = -0.119381,
-  gamma_employed_2  = -0.611799,
-  gamma_education_2 =  0.043010,
-  gamma_density_2   =  0.059290,
-  gamma_license_2   =  1.830124,
+  gamma_ebike_2     =  0.000000,
+  gamma_male_2      =  0.000000,
+  gamma_age_2       =  0.000000,
+  gamma_employed_2  =  0.000000,
+  gamma_education_2 =  0.000000,
+  gamma_density_2   =  0.000000,
+  gamma_license_2   =  0.000000,
   gamma_CarAtt_2    = -0.515475,
   gamma_TrainAtt_2  =  0.274453,
   gamma_BTMAtt_2    = -0.130794,
   gamma_BikeAtt_2   =  1.059832,
-  gamma_Car_2       = -1.028329,
-  gamma_ebike_3     =  0.135800,
-  gamma_male_3      =  0.104951,
-  gamma_age_3       =  0.018650,
-  gamma_employed_3  = -0.624231,
-  gamma_education_3 =  0.187623,
-  gamma_density_3   =  0.391359,
-  gamma_license_3   =  1.654650,
+  gamma_Car_2       =  0.000000,
+  gamma_ebike_3     =  0.000000,
+  gamma_male_3      =  0.000000,
+  gamma_age_3       =  0.000000,
+  gamma_employed_3  =  0.000000,
+  gamma_education_3 =  0.000000,
+  gamma_density_3   =  0.000000,
+  gamma_license_3   =  0.000000,
   gamma_CarAtt_3    = -0.407004,
   gamma_TrainAtt_3  =  0.174715,
   gamma_BTMAtt_3    =  0.296930,
   gamma_BikeAtt_3   =  0.336879,
-  gamma_Car_3       = -0.923423
+  gamma_Car_3       =  0.000000
 )
 
 #' Fix betas of car to get reference alternative
@@ -437,15 +437,25 @@ apollo_inputs <- apollo_validateInputs()
 
 forecast <- apollo_prediction(model, apollo_probabilities, apollo_inputs)
 
-mean(forecast$model$chosen)
-sum(log(forecast$model$chosen))
-sum(log(forecast$model$chosen)) / nrow(database)
+# apollo_prediction() returns the probability of each alternative per trip;
+# match these to the observed choices and take the probability of the chosen one
+holdout <- database |>
+  group_by(PSEUDO_ID) |>
+  mutate(Observation = row_number()) |>
+  ungroup() |>
+  select(ID = PSEUDO_ID, Observation, CHOICE) |>
+  inner_join(forecast$model, by = c("ID", "Observation"))
+stopifnot(nrow(holdout) == nrow(database))
 
-predicted <- forecast$model |>
-  select(cr, pt, bc, wk) |>
-  max.col()
+prob_chosen <- as.matrix(holdout[, c("cr", "pt", "bc", "wk")])[
+  cbind(seq_len(nrow(holdout)), holdout$CHOICE)
+]
+predicted <- max.col(holdout[, c("cr", "pt", "bc", "wk")], ties.method = "first")
 
-table(database$CHOICE, predicted)
-hit <- sum(diag(table(database$CHOICE, predicted)))
-miss <- nrow(database) - hit
-hit / nrow(database)
+mean(prob_chosen)
+sum(log(prob_chosen))
+sum(log(prob_chosen)) / nrow(holdout)
+
+table(holdout$CHOICE, predicted)
+hit <- sum(predicted == holdout$CHOICE)
+hit / nrow(holdout)

@@ -22,9 +22,8 @@ apollo_control <- list(
 # ################################################################# #
 #### LOAD DATA AND APPLY ANY TRANSFORMATIONS                     ####
 # ################################################################# #
-colnames(database)
 
-database <- read_csv("Data/weather_effects_mpn.csv")
+database <- read.csv("Data/weather_effects_mpn.csv")
 
 # Add short-distance variable
 database <- database |>
@@ -247,27 +246,34 @@ apollo_modelOutput(model)
 apollo_saveOutput(model)
 
 # ################################################################# #
-#### CONFUSION MATRIX ON HOLD-OUT SAMPLE                         ####
+#### ACCURACY ON HOLD-OUT SAMPLE                                 ####
 # ################################################################# #
 
 database <- wave5
-
-database |>
-  distinct(PERSID)
 
 apollo_inputs <- apollo_validateInputs()
 
 forecast <- apollo_prediction(model, apollo_probabilities, apollo_inputs)
 
-predicted <- forecast |>
-  select(cr, pt, bc, wk) |>
-  max.col()
+# apollo_prediction() returns the probability of each alternative per trip;
+# match these to the observed choices and take the probability of the chosen one
+holdout <- database |>
+  group_by(PSEUDO_ID) |>
+  mutate(Observation = row_number()) |>
+  ungroup() |>
+  select(ID = PSEUDO_ID, Observation, CHOICE) |>
+  inner_join(forecast, by = c("ID", "Observation"))
+stopifnot(nrow(holdout) == nrow(database))
 
-mean(forecast$chosen)
-sum(log(forecast$chosen))
-sum(log(forecast$chosen)) / nrow(database)
+prob_chosen <- as.matrix(holdout[, c("cr", "pt", "bc", "wk")])[
+  cbind(seq_len(nrow(holdout)), holdout$CHOICE)
+]
+predicted <- max.col(holdout[, c("cr", "pt", "bc", "wk")], ties.method = "first")
 
-table(database$CHOICE, predicted)
-hit <- sum(diag(table(database$CHOICE, predicted)))
-miss <- nrow(database) - hit
-hit / nrow(database)
+mean(prob_chosen)
+sum(log(prob_chosen))
+sum(log(prob_chosen)) / nrow(holdout)
+
+table(holdout$CHOICE, predicted)
+hit <- sum(predicted == holdout$CHOICE)
+hit / nrow(holdout)
