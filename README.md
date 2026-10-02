@@ -48,7 +48,7 @@ travel times (minutes) per mode, scaled trip distance (`AFSTV`), trip purpose, s
 attitude and weather scores, mode availability dummies and the chosen mode (`CHOICE`: 1 car, 2 PT, 3 bike, 4 walk).
 
 Respondent identifiers were replaced by random integers (`PSEUDO_ID`); they only serve to group
-repeated observations of the same person. No dates, locations or other direct identifiers are included.
+repeated observations of the same person. 
 
 ## Differences with the paper
 
