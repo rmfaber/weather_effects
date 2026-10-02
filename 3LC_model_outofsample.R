@@ -1,4 +1,4 @@
-# Estimation on the full database (all five waves, 2013-2017)
+# Estimation on waves 1-4 with wave 5 (2017) as hold-out sample
 # Clear memory
 rm(list = ls())
 
@@ -14,8 +14,8 @@ apollo_initialise()
 
 # Set core controls
 apollo_control <- list(
-  modelName       = "MPN_3LC_v7_tt_full",
-  modelDescr      = "3LC model, all waves",
+  modelName       = "MPN_3LC_v7_tt",
+  modelDescr      = "3LC model version",
   indivID         = "PSEUDO_ID",
   nCores          = 4,
   outputDirectory = "Output"
@@ -127,6 +127,13 @@ database |>
     mean(Train_Attitude),
     mean(Bike_Attitude)
   )
+
+# Split off wave 5 (2017) as hold-out sample
+wave5 <- database |>
+  filter(JAAR == 2017)
+
+database <- database |>
+  filter(JAAR != 2017)
 
 # ################################################################# #
 #### DEFINE MODEL PARAMETERS                                     ####
@@ -420,3 +427,36 @@ apollo_modelOutput(model)
 
 ## Formatted output
 apollo_saveOutput(model)
+
+# ################################################################# #
+#### ACCURACY ON HOLD-OUT SAMPLE                                 ####
+# ################################################################# #
+
+database <- wave5
+
+apollo_inputs <- apollo_validateInputs()
+
+forecast <- apollo_prediction(model, apollo_probabilities, apollo_inputs)
+
+# apollo_prediction() returns the probability of each alternative per trip;
+# match these to the observed choices and take the probability of the chosen one
+holdout <- database |>
+  group_by(PSEUDO_ID) |>
+  mutate(Observation = row_number()) |>
+  ungroup() |>
+  select(ID = PSEUDO_ID, Observation, CHOICE) |>
+  inner_join(forecast$model, by = c("ID", "Observation"))
+stopifnot(nrow(holdout) == nrow(database))
+
+prob_chosen <- as.matrix(holdout[, c("cr", "pt", "bc", "wk")])[
+  cbind(seq_len(nrow(holdout)), holdout$CHOICE)
+]
+predicted <- max.col(holdout[, c("cr", "pt", "bc", "wk")], ties.method = "first")
+
+mean(prob_chosen)
+sum(log(prob_chosen))
+sum(log(prob_chosen)) / nrow(holdout)
+
+table(holdout$CHOICE, predicted)
+hit <- sum(predicted == holdout$CHOICE)
+hit / nrow(holdout)
