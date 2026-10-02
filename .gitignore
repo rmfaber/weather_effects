@@ -50,7 +50,6 @@ po/*~
 rsconnect/
 # Private / non-shareable material
 Data_private/
-Data/
 Output/*.rds
 Output/*_output.txt
 .Rproj.user/
